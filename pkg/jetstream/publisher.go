@@ -36,15 +36,16 @@ type JetStreamPublisher struct {
 }
 
 func NewPublisher(config *PublisherConfig, logger watermill.LoggerAdapter, options ...nats.PubOpt) (Publisher, error) {
-	js, err := NewRawConnection(&config.RawConnectionConfig)
-	if err != nil {
-		return nil, err
+	if config.StreamName == "" {
+		return nil, errors.New("stream name can't be empty")
 	}
 
-	if _, err := js.AddStream(&nats.StreamConfig{
-		Name:     "ORDERS",
-		Subjects: []string{"ORDERS.*"},
-	}); err != nil {
+	if len(config.Subjects) == 0 {
+		return nil, errors.New("at least one stream subject must be set")
+	}
+
+	js, err := NewRawConnection(&config.RawConnectionConfig)
+	if err != nil {
 		return nil, err
 	}
 

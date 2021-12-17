@@ -7,6 +7,8 @@ import (
 
 type RawConnectionConfig struct {
 	Addr             string
+	StreamName       string
+	Subjects         []string
 	NatsOptions      []nats.Option
 	JetStreamOptions []nats.JSOpt
 }
@@ -21,6 +23,11 @@ func NewRawConnection(config *RawConnectionConfig) (nats.JetStreamContext, error
 	if err != nil {
 		return nil, errors.Wrap(err, "can't connect to JetStream")
 	}
+
+	js.AddStream(&nats.StreamConfig{
+		Name:     config.StreamName,
+		Subjects: config.Subjects,
+	})
 
 	return js, nil
 }
