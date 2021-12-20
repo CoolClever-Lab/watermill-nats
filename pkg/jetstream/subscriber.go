@@ -1,19 +1,21 @@
 package jetstream
 
 import (
+	"bytes"
+	"encoding/json"
+
 	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/nats-io/nats.go"
-	"github.com/pkg/errors"
 )
 
 type Subscriber interface {
-	Subscribe(subj string, handler nats.MsgHandler) error
+	Subscribe(subj string) (<-chan *message.Message, error)
 	SubscribeSync(subj string) error
 }
 
 type SubscriberConfig struct {
 	RawConnectionConfig
-	Handler func(*nats.Msg)
 }
 
 type JetStreamSubscriber struct {
@@ -35,16 +37,22 @@ func NewSubscriber(config *SubscriberConfig, logger watermill.LoggerAdapter, opt
 	}, nil
 }
 
-func (s *JetStreamSubscriber) Subscribe(subj string, handler nats.MsgHandler) error {
-	if handler == nil {
-		return errors.New("subscription messages handler can't be nil")
+func (s *JetStreamSubscriber) Subscribe(subj string) (<-chan *message.Message, error) {
+	out := make(chan *message.Message)
+
+	if _, err := s.conn.Subscribe(subj, func(m *nats.Msg) {
+		buf := bytes.NewBuffer(m.Data)
+
+		var msg message.Message
+
+		if err := json.NewDecoder(buf).Decode(&msg); err != nil {
+			s.logger.Error("Can't decode to message struct", err, nil)
+		}
+	}, s.options...); err != nil {
+		return nil, err
 	}
 
-	if _, err := s.conn.Subscribe(subj, handler, s.options...); err != nil {
-		return err
-	}
-
-	return nil
+	return out, nil
 }
 
 func (s *JetStreamSubscriber) SubscribeSync(subj string) error {
